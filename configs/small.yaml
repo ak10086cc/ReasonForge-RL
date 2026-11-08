@@ -1,0 +1,46 @@
+name: small
+seed: 42
+device: auto
+output_dir: outputs/runs
+model:
+  id: Qwen/Qwen2.5-0.5B-Instruct
+  revision: 7ae557604adf67be50417f59c2c2f167def9a775
+data:
+  revision: 740312add88f781978c0658806c59bc2815b9866
+  validation_size: 128
+  train_samples: 128
+  validation_samples: 16
+  test_samples: 32
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+sft:
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  learning_rate: 0.0002
+  max_steps: 32
+  max_length: 512
+  save_steps: 16
+grpo:
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  learning_rate: 5.0e-06
+  max_steps: 16
+  save_steps: 8
+  num_generations: 4
+  max_completion_length: 256
+  temperature: 1.0
+  beta: 0.04
+  reward_weights:
+  - 2.0
+  - 0.2
+evaluation:
+  max_new_tokens: 256
+  temperature: 0
+ablation: true
