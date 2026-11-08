@@ -15,3 +15,15 @@ __pycache__/
 .vscode/
 /reports/*简历*.html
 /reports/*简历*.pdf
+/tmp/
+
+# Local collaboration, planning and job application material.
+AGENTS.md
+AGENTS.override.md
+/docs/
+/*学习路线*.md
+/reports/environment.md
+/reports/interview_qa.md
+/reports/resume_bullets.md
+/*简历*.html
+/*简历*.pdf

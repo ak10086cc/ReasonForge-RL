@@ -98,8 +98,11 @@ def create_run(config):
     with zipfile.ZipFile(run / "source_snapshot.zip", "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for name in provenance["source_hashes"]:
             archive.write(name, name)
-        for name in ("requirements.txt", "AGENTS.md", "docs/项目实施方案.md"):
-            archive.write(name, name)
+        archive.write("requirements.txt", "requirements.txt")
+        # Private collaboration documents are optional in a public checkout.
+        for name in ("AGENTS.md", "docs/项目实施方案.md"):
+            if Path(name).is_file():
+                archive.write(name, name)
     provenance["source_snapshot_sha256"] = file_hash(run / "source_snapshot.zip")
     write_json(run / "provenance.json", provenance)
     return run

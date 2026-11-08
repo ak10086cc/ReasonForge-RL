@@ -156,10 +156,14 @@ def test_document_delivery_uses_real_report_builder_in_isolated_fixture(tmp_path
     from reasonforge.utils import file_hash
     source = worker.ROOT
     workspace = tmp_path / "workspace"
-    for name in (*worker.DOCUMENTS, "scripts/make_report.py"):
+    # Private delivery documents need not be distributed in a public checkout.
+    source_documents = [n for n in worker.DOCUMENTS if (source / n).is_file()]
+    for name in worker.DOCUMENTS:
         target = workspace / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source / name, target)
+        target.write_text("# Delivery fixture\n", encoding="utf-8")
+    (workspace / "scripts").mkdir()
+    shutil.copy2(source / "scripts/make_report.py", workspace / "scripts/make_report.py")
     # This one-shot finalizer consumes a pre-delivery README. The repository's
     # current README is already finalized and may be edited for publication.
     # Keep the contract in the fixture, independent of the live document text.
@@ -176,11 +180,11 @@ def test_document_delivery_uses_real_report_builder_in_isolated_fixture(tmp_path
     monkeypatch.setattr(worker, "ROOT", workspace)
     monkeypatch.setattr(worker, "RUNS", ())
     from reasonforge.analyze import collect_results
-    before = {n: file_hash(source / n) for n in worker.DOCUMENTS}
+    before = {n: file_hash(source / n) for n in source_documents}
     pairs = worker.update_documents(run, collect_results(run), {"passed": 1}, {
         "unique_training_questions_seen": 1, "same_training_question_sequence": True})
     assert pairs["sft_vs_grpo"]["both_correct"] == 1
     assert "阶段 1–6 已完成" in (workspace / "README.md").read_text(encoding="utf-8")
     assert "Full 实验解释与恢复记录" in (workspace / "reports/experiment_report.md").read_text(encoding="utf-8")
     assert "Codex" in (workspace / "reports/resume_bullets.md").read_text(encoding="utf-8")
-    assert before == {n: file_hash(source / n) for n in worker.DOCUMENTS}
+    assert before == {n: file_hash(source / n) for n in source_documents}
