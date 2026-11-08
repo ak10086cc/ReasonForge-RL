@@ -36,31 +36,33 @@
 ```powershell
 git clone https://github.com/ak10086cc/ReasonForge-RL.git
 cd ReasonForge-RL
-py -3.12 -m venv "$env:USERPROFILE/.cache/reasonforge/venv"
-$python = "$env:USERPROFILE/.cache/reasonforge/venv/Scripts/python.exe"
+py -3.12 -m venv .venv
+$python = ".venv/Scripts/python.exe"
 & $python -m pip install -r requirements.txt
 & $python -m pip check
 $env:PYTHONDONTWRITEBYTECODE = '1'
 ```
 
-已有兼容环境可直接复用。首次运行从 Hugging Face 下载公开模型与 `openai/gsm8k` 的 `main` 配置，缓存默认位于仓库外的用户缓存目录，会占用磁盘。模型/数据 revision 已固定，无需付费 API；默认关闭训练上报与 Hub 上传。
+入口默认使用项目内 `.venv`，可运行 `.\scripts\run.ps1 -Task info` 核实实际解释器；也可用 `-PythonPath` 明确指定。缺少环境时明确报错，不自动安装或回退到旧的外部环境。首次运行从 Hugging Face 下载公开模型与 `openai/gsm8k` 的 `main` 配置，模型和原始下载缓存保存在 `.cache/huggingface/hub/`，处理后的数据保存在 `.cache/huggingface/datasets/`，会占用项目所在磁盘。模型/数据 revision 已固定，无需付费 API；默认关闭训练上报与 Hub 上传。
 
 ## 快速验证与实验入口
 
 先运行自动化测试，再执行真实 Smoke。Smoke 只有 2 条训练、2 条验证、2 道测试题，SFT/GRPO 各 1 步，用于验证流程，不代表正式效果。
 
 ```powershell
-New-Item -ItemType Directory -Force tmp | Out-Null
-& $python -m pytest tests -q --basetemp tmp/pytest -o cache_dir=tmp/pytest-cache
-& $python scripts/run_pipeline.py --config configs/smoke.yaml
+.\scripts\run.ps1 -Task info
+.\scripts\run.ps1 -Task test
+.\scripts\run.ps1 -Task pipeline -Config configs/smoke.yaml
 ```
 
-公开检出不包含历史实验产物，因此普通 pytest 会跳过需显式提供 `--artifact-run` 的额外产物验收。模型更新测试使用微型模型，无需下载训练基座。
+运行入口默认 `info`，不会自动训练；测试夹具、可重定向的临时文件与绘图缓存写入 `tmp/`，HF 模型、数据、Xet 与辅助资产缓存写入项目 `.cache/huggingface/`，结束恢复调用方环境变量及目录。Python 通用 CLI 同样默认使用项目缓存，显式 HF 缓存环境变量可覆盖；应在导入相关库前设置。HF 用户认证、工具设置及共享 pip 缓存保持原位，不主动清空。`-Task help` 查看底层 CLI；分阶段和续跑可传 `-Phase`、`-RunDir`、`-ResumeCheckpoint`、`-EvalMaxSeconds` 或 `-EvalMaxSamples`。
+
+公开检出不包含历史实验产物，因此普通 pytest 会跳过需显式提供 `--artifact-run` 的额外产物验收。模型更新测试使用微型模型，无需下载训练基座权重；prompt 与 loss mask 测试会加载固定 revision 的 Qwen 分词器，首次需要联网获取其配置和分词文件，离线运行须提前准备这些缓存。
 
 Small 使用 128 条训练候选、16 条验证、32 道测试题，SFT 32 步、GRPO 16 步，并运行奖励消融：
 
 ```powershell
-& $python scripts/run_pipeline.py --config configs/small.yaml
+.\scripts\run.ps1 -Task pipeline -Config configs/small.yaml
 ```
 
 SFT 会剔除超出长度上限的完整解答并记录 ID，不截断最终答案。实际样本数见运行的 `sft/summary.json`。每次新实验创建独立 `outputs/runs/<name>-<run_id>/`，命令输出 `RUN_DIR`，已有产物受到覆盖保护。
@@ -68,13 +70,13 @@ SFT 会剔除超出长度上限的完整解答并记录 ID，不截断最终答�
 Full 需要较长时间，首次请先完成 Smoke/Small 和资源检查。以下各命令在前一阶段完成后分别执行，`$run` 必须替换为新准备阶段输出的实际目录：
 
 ```powershell
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase prepare
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase prepare
 $run = 'outputs/runs/<本次命令输出的实际目录>'
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase baseline --run-dir $run
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase sft --run-dir $run
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase grpo --run-dir $run
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase ablation --run-dir $run
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase analyze --run-dir $run
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase baseline -RunDir $run
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase sft -RunDir $run
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase grpo -RunDir $run
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase ablation -RunDir $run
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase analyze -RunDir $run
 ```
 
 `baseline` 先完成验证预检，再冻结评测契约并评测测试集。各后续阶段核验前置结果和模型衔接。根目录的协作规则、实施方案和个人资料不是运行前提，不随公开仓库分发。
@@ -85,7 +87,7 @@ $run = 'outputs/runs/<本次命令输出的实际目录>'
 
 ```powershell
 # 替换为该阶段实际存在、早于最后一步的完整检查点。
-& $python scripts/run_pipeline.py --config configs/full.yaml --phase grpo --run-dir $run --resume-checkpoint "$run/grpo/checkpoint-<实际步数>"
+.\scripts\run.ps1 -Task pipeline -Config configs/full.yaml -Phase grpo -RunDir $run -ResumeCheckpoint "$run/grpo/checkpoint-<实际步数>"
 ```
 
 训练已经完成、只有评测未完成时，重复相同阶段命令并省略 `--resume-checkpoint`，会复用最终模型继续评测。`--eval-max-seconds`、`--eval-max-samples` 可限制每次新增评测量；续接时核验配置、数据、权重及已保存预测。正式比较应完成相同的完整测试集。
@@ -93,7 +95,9 @@ $run = 'outputs/runs/<本次命令输出的实际目录>'
 完成自己的实验后，可核验原始产物并预览报告：
 
 ```powershell
-& $python -m pytest tests -q --artifact-run $run --basetemp tmp/artifact-pytest -o cache_dir=tmp/pytest-cache
+.\scripts\run.ps1 -Task test -ArtifactRun $run
+# 仅预览报告，绘图缓存与预览都进入 tmp。
+$env:MPLCONFIGDIR = Join-Path (Get-Location) "tmp/matplotlib"
 & $python scripts/make_report.py --runs $run --output-dir tmp/report-preview
 ```
 
@@ -109,6 +113,7 @@ $run = 'outputs/runs/<本次命令输出的实际目录>'
 | `tests/` | 数据隔离、loss mask、奖励、真实参数更新、保存重载、恢复与指标测试 |
 | `reports/` | 筛选后的实验报告和展示图表 |
 | `outputs/runs/` | 本地配置、源码快照、日志、预测、模型、检查点和验收记录 |
+| `.cache/huggingface/` | 本地可复用的基座模型、原始下载和处理后的数据缓存，不上传 |
 | `tmp/` | 测试样例、预览等可丢弃临时内容，进程停止后可整目录清理 |
 
 公开仓库不包含模型权重、数据缓存、逐题预测、原始日志、个人简历及内部协作资料。报告中的历史 run_id/outputs 路径定位本机保留的证据，不随克隆分发；重新运行会生成自己的产物。原实验时尚无 Git commit，源码快照用于追溯，不能把后来的发布提交冒充实验当时的版本。

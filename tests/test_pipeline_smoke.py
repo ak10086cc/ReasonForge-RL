@@ -28,6 +28,34 @@ def test_cli_help():
     assert result.returncode == 0 and b"--resume-checkpoint" in result.stdout
 
 
+@pytest.mark.parametrize("custom_hub", [False, True])
+def test_runtime_cache_locations_in_fresh_process(tmp_path, custom_hub):
+    import os
+    root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    names = ("HF_HUB_CACHE", "HF_DATASETS_CACHE", "HF_XET_CACHE", "HF_ASSETS_CACHE")
+    for name in names:
+        env.pop(name, None)
+    env["PYTHONPATH"] = str(root / "src")
+    if custom_hub:
+        env["HF_HUB_CACHE"] = str(tmp_path / "custom-hub")
+    code = """
+import json
+from reasonforge.utils import configure_runtime
+configure_runtime()
+from huggingface_hub import constants as hub
+from datasets import config as data
+print(json.dumps([hub.HF_HUB_CACHE, str(data.HF_DATASETS_CACHE),
+                  hub.HF_XET_CACHE, hub.HF_ASSETS_CACHE]))
+"""
+    result = subprocess.run([sys.executable, "-B", "-c", code], cwd=tmp_path,
+                            env=env, capture_output=True, text=True, check=True)
+    actual = [Path(p) for p in json.loads(result.stdout)]
+    cache = root / ".cache" / "huggingface"
+    assert actual == [tmp_path / "custom-hub" if custom_hub else cache / "hub",
+                      cache / "datasets", cache / "xet", cache / "assets"]
+
+
 def test_create_run_without_private_documents(tmp_path, monkeypatch):
     config = load_config("configs/smoke.yaml")
     workspace = tmp_path / "public-checkout"

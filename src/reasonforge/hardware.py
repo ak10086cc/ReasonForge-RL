@@ -17,6 +17,8 @@ def inspect_environment():
     cache = home / ".cache" / "huggingface"
     import os
     cache = Path(os.environ.get("HF_HOME", cache))
+    model_cache = Path(os.environ.get("HF_HUB_CACHE", cache / "hub"))
+    dataset_cache = Path(os.environ.get("HF_DATASETS_CACHE", cache / "datasets"))
     result = {
         "checked_at": datetime.now().astimezone().isoformat(),
         "os": platform.platform(), "python": platform.python_version(),
@@ -27,8 +29,8 @@ def inspect_environment():
         "git_remote_configured": bool(command_output(["git", "remote"])),
         "git_status": command_output(["git", "status", "--short"]),
         "dependencies": versions(),
-        "model_cache_names": [p.name for p in (cache / "hub").glob("models--*")],
-        "dataset_cache_names": [p.name for p in (cache / "datasets").glob("openai*")],
+        "model_cache_names": [p.name for p in model_cache.glob("models--*")],
+        "dataset_cache_names": [p.name for p in dataset_cache.glob("openai*")],
         "project_checkpoints": [str(p.relative_to(Path.cwd())) for p in Path.cwd().glob("outputs/runs/*/*/final")],
     }
     try:

@@ -53,6 +53,12 @@ def versions():
 
 
 def configure_runtime():
+    # Set cache defaults before training/data libraries are imported. Do not
+    # relocate HF_HOME: it also contains user authentication and tool settings.
+    cache = Path(__file__).resolve().parents[2] / ".cache" / "huggingface"
+    for name, directory in (("HF_HUB_CACHE", "hub"), ("HF_DATASETS_CACHE", "datasets"),
+                            ("HF_XET_CACHE", "xet"), ("HF_ASSETS_CACHE", "assets")):
+        os.environ.setdefault(name, str(cache / directory))
     # Prevent tracking integrations and unsolicited telemetry/network logging.
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     os.environ.setdefault("DO_NOT_TRACK", "1")
